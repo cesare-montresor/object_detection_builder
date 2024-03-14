@@ -6,6 +6,14 @@ Making object detection models
 
 ```bash
 
-source ./install.sh
+./install.sh
+
+```
+
+# Download dataset
+
+```bash
+
+./install.sh
 
 ```
