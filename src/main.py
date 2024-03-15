@@ -108,20 +108,23 @@ def train_model(params, model, data_loader):
 
     for _ in range(num_epochs):
         for batch in data_loader:
-            x_images = [data[0] for data in batch]
-            image_sizes = [torch.as_tensor((img.shape[2],img.shape[1],img.shape[2],img.shape[1])) for img in x_images] #h,w,h,w
-            y_bbox = [torch.as_tensor(data[1][0]['bbox']) for data in batch]
+            x_image = [data[0] for data in batch]
+            image_sizes = [torch.as_tensor((img.shape[2],img.shape[1],img.shape[2],img.shape[1])) for img in x_image] #h,w,h,w
+            y_bbox = [torch.as_tensor(data[1][0].get('bbox',[0,0,0,0])) for data in batch]
+            y_class = [torch.as_tensor(1 if data[1][0]['type']=='Car' else 0) for data in batch]
 
-            x_images = torch.stack(x_images).to(dtype=dtype, device=device)
+            x_image = torch.stack(x_image).to(dtype=dtype, device=device)
+            y_class = torch.stack(y_class).to(dtype=dtype, device=device)
             y_bbox = torch.stack(y_bbox).to(device=device) / torch.stack(image_sizes).to(device=device)
 
             optimizer.zero_grad()
 
-            y_outputs = model(x_images)
-            #loss_class = criterion_class(y_outputs, y_bbox)
-            loss_bbox = criterion_bbox(y_outputs, y_bbox)
-            #loss = loss_class + loss_bbox
-            loss = loss_bbox
+            y_hat = model(x_image)
+            y_hat_class = y_hat[:,0]
+            y_hat_bbox = y_hat[:,1:]
+            loss_class = criterion_class(y_hat_class, y_class)
+            loss_bbox = criterion_bbox(y_hat_bbox, y_bbox)
+            loss = loss_class + loss_bbox
             loss.backward()
 
             optimizer.step()
@@ -148,7 +151,7 @@ def build_model(params):
         nn.Linear(in_features, fc_hidden_size), # attach trainable classifier
         nn.ReLU(),
         nn.Dropout(dropout),
-        nn.Linear(fc_hidden_size, 4),
+        nn.Linear(fc_hidden_size, 5),
         nn.Sigmoid()
     )
 
