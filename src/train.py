@@ -26,7 +26,7 @@ from kitty_dataset import KittiDataset
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dtype = torch.float
-session_id = int(time.time()*1000)
+session_id = str(int(time.time()*1000))
 output_dir = './output/'
 
 def main():
@@ -35,7 +35,7 @@ def main():
         {"name": "lr",                 "value_type": "float",  "type": "range", "bounds": [1e-6, 0.4], "log_scale": True}, #optimizer
         {"name": "lr_max",             "value_type": "float",  "type": "range", "bounds": [1e-6, 0.4], "log_scale": True}, #LR scheduler
 
-        {"name": "batch_size",         "value_type": "int",    "type": "range", "bounds": [16, 128]}, #train loop
+        {"name": "batch_size",         "value_type": "int",    "type": "range", "bounds": [4, 128]}, #train loop
         {"name": "num_epoch",          "value_type": "int",    "type": "range", "bounds": [1, 30]}, #train loop
         {"name": "drop_out",           "value_type": "float",  "type": "range", "bounds": [0.0, 0.9]}, # model FC
         {"name": "fc_hidden_num",      "value_type": "int",    "type": "range", "bounds": [0, 10]}, # model FC
@@ -43,6 +43,8 @@ def main():
         
         {"name": "resnet_size",        "value_type": "int",    "type": "choice", "values": [18, 34, 50, 101, 152], "sort_values": True, "is_ordered": True}, # model CNN
     ]
+
+    #{'best_parameters': {'lr': 2.2603352426200233e-05, 'lr_max': 0.004585287589188039, 'batch_size': 4, 'num_epoch': 19, 'drop_out': 0.12963303754006938, 'fc_hidden_num': 3, 'fc_hidden_size': 897, 'resnet_size': 101}, 'means': {'loss': 1.5484636355583556}, 'covariances': {'loss': {'loss': 0.02377678650315952}}}
 
     best_parameters, values, experiment, model = optimize(
         parameters=params,
@@ -61,16 +63,9 @@ def main():
     session_dir = output_dir + session_id + '/'
     os.makedirs(session_dir, exist_ok=True)
 
-    torch.save(session_dir + 'model.pth')
+    torch.save(model, session_dir + 'model.pth')
     results_yaml = yaml.dump(results) 
     with open(session_dir + 'params.yml', 'w') as f: f.write(results_yaml)
-
-    
-
-
-
-
-
 
 
 def train_evaluate(params):

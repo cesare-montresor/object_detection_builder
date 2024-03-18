@@ -8,7 +8,21 @@
             "name": "Train",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/main.py",
+            "program": "src/train.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Eval",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "src/eval.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "src/test.py",
             "console": "integratedTerminal"
         },
         {
