@@ -12,6 +12,7 @@ conda activate $ENV_NAME
 pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
 pip install ax-platform==0.3.7
 pip install matplotlib==3.8.3
+pip install pyyaml==6.0.1
 
 
 #pip install -r requirements.txt

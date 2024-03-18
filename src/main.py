@@ -1,7 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import time 
+import os
+import yaml
+
 import torch
-import torchvision
 import torchvision.transforms.v2 as transforms
 import torch.optim as optim
 import torch.nn as nn
@@ -23,31 +26,51 @@ from kitty_dataset import KittiDataset
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dtype = torch.float
-
+session_id = int(time.time()*1000)
+output_dir = './output/'
 
 def main():
+    
     params = [
-        {"name": "lr", "value_type": "float", "type": "range", "bounds": [1e-6, 0.4], "log_scale": True},
-        {"name": "batch_size", "value_type": "int", "type": "range", "bounds": [16, 128]},
-        {"name": "num_epoch",      "value_type": "int",     "type": "range",  "bounds": [1, 30]},
-        {"name": "drop_out", "value_type": "float", "type": "range", "bounds": [0.0, 0.9]},
-        {"name": "fc_hidden_size", "value_type": "int", "type": "range", "bounds": [64, 2048]},
-        # {"name": "step_size ", "type": "range", "bounds": [0.0,0.9]},
-        {"name": "resnet_size", "value_type": "int", "type": "choice", "values": [18, 34, 50, 101, 152],
-         "sort_values": True, "is_ordered": True},
+        {"name": "lr",                 "value_type": "float",  "type": "range", "bounds": [1e-6, 0.4], "log_scale": True}, #optimizer
+        {"name": "lr_max",             "value_type": "float",  "type": "range", "bounds": [1e-6, 0.4], "log_scale": True}, #LR scheduler
+
+        {"name": "batch_size",         "value_type": "int",    "type": "range", "bounds": [16, 128]}, #train loop
+        {"name": "num_epoch",          "value_type": "int",    "type": "range", "bounds": [1, 30]}, #train loop
+        {"name": "drop_out",           "value_type": "float",  "type": "range", "bounds": [0.0, 0.9]}, # model FC
+        {"name": "fc_hidden_num",      "value_type": "int",    "type": "range", "bounds": [0, 10]}, # model FC
+        {"name": "fc_hidden_size",     "value_type": "int",    "type": "range", "bounds": [64, 2048]}, # model FC
+        
+        {"name": "resnet_size",        "value_type": "int",    "type": "choice", "values": [18, 34, 50, 101, 152], "sort_values": True, "is_ordered": True}, # model CNN
     ]
 
     best_parameters, values, experiment, model = optimize(
         parameters=params,
         evaluation_function=train_evaluate,
         objective_name='loss',
-        minimize=True,
+        minimize=True
     )
-
-    print(best_parameters)
     means, covariances = values
-    print(means)
-    print(covariances)
+
+    results = {
+        'best_parameters': best_parameters,
+        'means': means,
+        'covariances': covariances,
+    }
+    print(results)
+    session_dir = output_dir + session_id + '/'
+    os.makedirs(session_dir, exist_ok=True)
+
+    torch.save(session_dir + 'model.pth')
+    results_yaml = yaml.dump(results) 
+    with open(session_dir + 'params.yml', 'w') as f: f.write(results_yaml)
+
+    
+
+
+
+
+
 
 
 def train_evaluate(params):
@@ -90,16 +113,17 @@ def train_model(params, model, data_loader):
     criterion_bbox = nn.MSELoss()
 
     lr = params.get('lr', 0.001)
+    lr_max = params.get('lr_max', lr*10)
     num_epochs = params.get("num_epochs", 1)
-    step_size = params.get("step_size", 30)
+    
 
     optimizer = optim.AdamW(
         model.parameters(),
         lr=lr
         # momentum=params.get('momentum',0.9)
     )
-
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size)
+    num_batches = len(data_loader)
+    scheduler = optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=lr_max, total_steps=num_epochs*num_batches)
 
     for _ in range(num_epochs):
         for x_images, y_labels in data_loader:
@@ -121,7 +145,9 @@ def train_model(params, model, data_loader):
 def build_model(params):
     dropout = params.get('dropout', 0.1)
     resnet_size = params.get('resnet_size', 18)
-    fc_hidden_size = params.get('fs_hidden_size', 64)  # Hidden layer size; you can optimize this as well
+    resnet_size = params.get('resnet_size', 18)
+    fc_hidden_num = params.get('fc_hidden_num', 0)  # Hidden layer size; you can optimize this as well
+    fc_hidden_size = params.get('fc_hidden_size', 64)  # Hidden layer size; you can optimize this as well
 
     if resnet_size == 18:  model = resnet18(weights=ResNet18_Weights.DEFAULT)
     if resnet_size == 34:  model = resnet34(weights=ResNet34_Weights.DEFAULT)
@@ -133,16 +159,28 @@ def build_model(params):
         param.requires_grad = False  # Freeze feature extractor
 
     in_features = model.fc.in_features
-    print(in_features)
+    
+    fc_layers = [
+        nn.Dropout(dropout),
+        nn.Linear(in_features, fc_hidden_size),    
+        nn.ReLU() 
+    ]
 
-    model.fc = nn.Sequential(
-        nn.Linear(in_features, fc_hidden_size),  # attach trainable classifier
-        nn.ReLU(),
+    for _ in range(fc_hidden_num):
+        fc_layers.extend([
+            nn.Dropout(dropout),
+            nn.Linear(fc_hidden_size, fc_hidden_size),    
+            nn.ReLU() 
+        ])
+    
+    fc_layers.extend([
         nn.Dropout(dropout),
         nn.Linear(fc_hidden_size, 5),
         nn.Sigmoid()
-    )
-    # model.cuda()
+    ])
+        
+    model.fc = nn.Sequential(*fc_layers)
+    
     return model  # return untrained model
 
 
