@@ -9,28 +9,32 @@
             "type": "debugpy",
             "request": "launch",
             "program": "src/train.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false
         },
         {
-            "name": "Eval",
+            "name": "Infer",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/eval.py",
-            "console": "integratedTerminal"
+            "program": "src/infer.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         },
         {
             "name": "Test",
             "type": "debugpy",
             "request": "launch",
             "program": "src/test.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false
         },
         {
             "name": "Current File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

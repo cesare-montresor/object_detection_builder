@@ -39,17 +39,17 @@ def main():
     
     dataloader = getDataLoader(params, False)
     inference_model(model, dataloader)
-    
-    return 
+     
 
 def inference_model(model, data_loader):
-    model.to(dtype=dtype, device=device)
-    model.eval()
+    #model.to(dtype=dtype, device=device)
+    #model.eval()
+    
 
     for x_images, y_labels in data_loader:
         x_images_gpu = x_images.to(dtype=dtype, device=device)
         
-        y_hat = model(x_images_gpu)
+        y_hat = model.predict(x_images_gpu)
         for img, lbl, lbl_hat in zip(x_images, y_labels, y_hat):
             img_np = img.cpu().numpy()
             lbl = np.array(lbl)
