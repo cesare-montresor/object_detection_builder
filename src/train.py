@@ -23,13 +23,24 @@ from ax.utils.notebook.plotting import render
 from ax.utils.tutorials.cnn_utils import evaluate  # train,
 from kitty_dataset import KittiDataset
 
+# http://vision.cs.stonybrook.edu/~lasot/
+# https://hengfan2010.github.io/projects/LaSOT/
+
 yaml.add_representer(np.ndarray, lambda dumper, array: dumper.represent_list(array.tolist()))
+yaml.add_representer(np.scalar, lambda dumper, array: dumper.represent_list(array.tolist()))
+
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dtype = torch.float
 session_id = str(int(time.time()*1000))
 output_dir = './output/'
+session_dir = output_dir + session_id + '/'
+os.makedirs(session_dir, exist_ok=True)
+imgnet_mean = (0.485, 0.456, 0.406)
+imgnet_std = (0.229, 0.224, 0.225)
 
+loss_class_weight = 1
+loss_bbox_weight = 1
 
 
 def main():
@@ -49,26 +60,31 @@ def main():
 
     #{'best_parameters': {'lr': 2.2603352426200233e-05, 'lr_max': 0.004585287589188039, 'batch_size': 4, 'num_epoch': 19, 'drop_out': 0.12963303754006938, 'fc_hidden_num': 3, 'fc_hidden_size': 897, 'resnet_size': 101}, 'means': {'loss': 1.5484636355583556}, 'covariances': {'loss': {'loss': 0.02377678650315952}}}
 
-    best_parameters, values, experiment, model = optimize(
+    best_params, stats, experiment, model = optimize(
         parameters=params,
         evaluation_function=train_evaluate,
         objective_name='loss',
         minimize=True
     )
-    means, covariances = values
 
+
+    means, covariances = stats
     results = {
-        'best_parameters': best_parameters,
+        'params': best_params,
         'means': means,
         'covariances': covariances,
     }
-    print(results)
-    session_dir = output_dir + session_id + '/'
-    os.makedirs(session_dir, exist_ok=True)
-
-    torch.save(model, session_dir + 'model.pth')
+    
     results_yaml = yaml.dump(results) 
     with open(session_dir + 'params.yml', 'w') as f: f.write(results_yaml)
+
+
+    trainloader = getDataLoader(best_params)
+    model_best = build_model(best_params)
+    model_best_trained = train_model(best_params, model_best, trainloader)
+    
+    torch.save(model_best_trained, session_dir + 'model.pth')
+    
 
 
 def train_evaluate(params):
@@ -77,8 +93,9 @@ def train_evaluate(params):
 
     model = build_model(params)
     model_trained = train_model(params, model, trainloader)
+    loss = evaluate_model(model_trained, valloader)
 
-    return evaluate_model(model_trained, valloader)
+    return loss
 
 def evaluate_model(model, data_loader):
     model.to(dtype=dtype, device=device)
@@ -97,7 +114,7 @@ def evaluate_model(model, data_loader):
         y_hat = model(x_images)
         loss_class = criterion_class(y_hat[:, 0], y_labels[:, 0])
         loss_bbox = criterion_bbox(y_hat[:, 1:], y_labels[:, 1:])
-        loss = loss_class + loss_bbox
+        loss = (loss_class * loss_class_weight) + (loss_bbox * loss_bbox_weight)
 
         total_loss += loss.item()
         num_samples += len(x_images)
@@ -125,18 +142,25 @@ def train_model(params, model, data_loader):
 
     for _ in range(num_epochs):
         for x_images, y_labels in data_loader:
+            
             x_images = x_images.to(dtype=dtype, device=device)
             y_labels = y_labels.to(dtype=dtype, device=device)
+            y_labels_class = y_labels[:, 0]
+            y_labels_bbox = y_labels[:, 1:]
 
             optimizer.zero_grad()
             y_hat = model(x_images)
-            loss_class = criterion_class(y_hat[:, 0], y_labels[:, 0])
-            loss_bbox = criterion_bbox(y_hat[:, 1:], y_labels[:, 1:])
+            y_hat_class = y_hat[:, 0]
+            y_hat_bbox = y_hat[:, 1:]
+            loss_class = criterion_class(y_hat_class, y_labels_class)
+            loss_bbox = criterion_bbox(y_hat_bbox, y_labels_bbox)
             loss = loss_class + loss_bbox
+            
+            optimizer.zero_grad()
             loss.backward()
-
             optimizer.step()
             scheduler.step()
+
     return model
 
 
@@ -195,7 +219,7 @@ def getTransforms(params):
         transforms.Resize(img_size),
         transforms.ToImage(),
         transforms.ToDtype(dtype, scale=True),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        transforms.Normalize(imgnet_mean, imgnet_std)
     ])
     return transform
 
@@ -209,12 +233,13 @@ def getDataLoader(params, train=True, download=False):
     return dataloader
 
 
+
 def collate_batch(batch):
     x_images = [data[0] for data in batch]
     y_labels = [data[1][0] for data in batch]
 
     image_sizes = [torch.as_tensor((img.shape[2], img.shape[1], img.shape[2], img.shape[1])) for img in
-                   x_images]  # h,w,h,w
+                   x_images]  # w,h,w,h
     y_bbox = [torch.as_tensor(label.get('bbox', [0, 0, 0, 0])) for label in y_labels]
     y_class = [torch.as_tensor([1 if label['type'] == 'Car' else 0]) for label in y_labels]
 

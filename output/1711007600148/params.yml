@@ -1,0 +1,33 @@
+covariances:
+  loss:
+    loss: !!python/object/apply:numpy.core.multiarray.scalar
+    - &id001 !!python/object/apply:numpy.dtype
+      args:
+      - f8
+      - false
+      - true
+      state: !!python/tuple
+      - 3
+      - <
+      - null
+      - null
+      - null
+      - -1
+      - -1
+      - 0
+    - !!binary |
+      u7PGXOBTRz8=
+means:
+  loss: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    guI7BuM38z8=
+params:
+  batch_size: 4
+  drop_out: 0.22237755117004582
+  fc_hidden_num: 7
+  fc_hidden_size: 181
+  lr: 0.0067551926591583565
+  lr_max: 0.0013211074669125876
+  num_epoch: 21
+  resnet_size: 50

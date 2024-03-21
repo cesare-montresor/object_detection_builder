@@ -24,102 +24,71 @@ from ax.utils.notebook.plotting import render
 from ax.utils.tutorials.cnn_utils import evaluate  # train,
 from kitty_dataset import KittiDataset
 
+# http://vision.cs.stonybrook.edu/~lasot/
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dtype = torch.float
-session_id = '1710758143091'
-output_dir = './output/'
+model_path = 'output/1711007600148/model.pth'
+imgnet_mean = (0.485, 0.456, 0.406)
+imgnet_std = (0.229, 0.224, 0.225)
 
 def main():
     params = {}
 
-    session_dir = output_dir + session_id + '/'
     
-    model = torch.load(session_dir+'model.pth')
+    model = torch.load(model_path)
     
     dataloader = getDataLoader(params, False)
     inference_model(model, dataloader)
-     
 
+@torch.no_grad
 def inference_model(model, data_loader):
-    #model.to(dtype=dtype, device=device)
-    #model.eval()
+    model.to(dtype=dtype, device=device)
+    model.eval()
     
 
     for x_images, y_labels in data_loader:
         x_images_gpu = x_images.to(dtype=dtype, device=device)
         
-        y_hat = model.predict(x_images_gpu)
-        for img, lbl, lbl_hat in zip(x_images, y_labels, y_hat):
+        y_hat = model(x_images_gpu)
+        y_hat_cpu = y_hat.detach().cpu().numpy()
+        for img, lbl, lbl_hat in zip(x_images, y_labels, y_hat_cpu):
             img_np = img.cpu().numpy()
+            img_np = np.transpose(img_np, (1, 2, 0))
+            img_np = ((img_np * imgnet_std) + imgnet_mean)
+            img_np = np.transpose(img_np, (2, 0, 1))
+            img_np = (img_np * 255).astype(np.int32)
+
             lbl = np.array(lbl)
-            h,w,c = img_np.shape
-            scale = np.array([h,w,h,w])
+            c,h,w = img_np.shape
+            scale = np.array([w,h,w,h])
             
             if lbl[0] > 0.5:
-                coords = lbl[1:] * scale
-                y1,x1,hb,wb = coords
-                y1,x1 = int(y1),int(x1)
-                y2,x2 = int(hb+y1),int(wb+x1)
-                cv2.rectangle(img_np, (y1,x1), (y2,x2), (0,255,0))
+                x1,y1,x2,y2 = lbl[1:] * scale
+                p1 = (int(x1),int(y1))
+                p2 = (int(x2),int(y2))
+                print('GT',p1,p2)
+                img_np = cv2.rectangle(img_np, p1, p2, (0,255,0), thickness=10)
             
             if lbl_hat[0] > 0.5:
-                coords = lbl_hat[1:] * scale
-                y1,x1,hb,wb = coords
-                y1,x1 = int(y1),int(x1)
-                y2,x2 = int(hb+y1),int(wb+x1)
-                cv2.rectangle(img_np, (y1,x1), (y2,x2), (0,255,255))
+                x1,y1,x2,y2 = lbl_hat[1:] * scale
+                p1 = (int(x1),int(y1))
+                p2 = (int(x2),int(y2))    
+                print('PRED',p1,p2)
+                img_np = cv2.rectangle(img_np, p1, p2, (0,255,255), thickness=10)
+            
+            p1,p2 = (200,200),(250,250)
+            img_np = cv2.rectangle(img_np, p1, p2, (0,255,255), thickness=10)
 
-            imshow(img_np)
-
-def train_model(params, model, data_loader):
-    model.to(dtype=dtype, device=device)
-
-    criterion_class = nn.CrossEntropyLoss()
-    criterion_bbox = nn.MSELoss()
-
-    lr = params.get('lr', 0.001)
-    lr_max = params.get('lr_max', lr*10)
-    num_epochs = params.get("num_epochs", 1)
-    
-
-    optimizer = optim.AdamW(
-        model.parameters(),
-        lr=lr
-        # momentum=params.get('momentum',0.9)
-    )
-    num_batches = len(data_loader)
-    scheduler = optim.lr_scheduler.OneCycleLR(optimizer=optimizer, max_lr=lr_max, total_steps=num_epochs*num_batches)
-
-    for _ in range(num_epochs):
-        for x_images, y_labels in data_loader:
-            x_images = x_images.to(dtype=dtype, device=device)
-            y_labels = y_labels.to(dtype=dtype, device=device)
-
-            optimizer.zero_grad()
-            y_hat = model(x_images)
-            loss_class = criterion_class(y_hat[:, 0], y_labels[:, 0])
-            loss_bbox = criterion_bbox(y_hat[:, 1:], y_labels[:, 1:])
-            loss = loss_class + loss_bbox
-            loss.backward()
-
-            optimizer.step()
-            scheduler.step()
-    return model
+            plt.imshow(np.transpose(img_np, (1, 2, 0)))
+            plt.show(block=True)
 
 
 
-def imshow(img):
-    img = img / 2 + 0.5  # unnormalize
-    npimg = img.numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.show()
 
 
 def getTransforms(params):
     img_size = (370, 1224)
-    imgnet_mean = (0.485, 0.456, 0.406)
-    imgnet_std = (0.229, 0.224, 0.225)
     transform = transforms.Compose([
         transforms.Resize(img_size),
         transforms.ToImage(),
@@ -143,7 +112,7 @@ def collate_batch(batch):
     y_labels = [data[1][0] for data in batch]
 
     image_sizes = [torch.as_tensor((img.shape[2], img.shape[1], img.shape[2], img.shape[1])) for img in
-                   x_images]  # h,w,h,w
+                   x_images]  # w,h,w,h
     y_bbox = [torch.as_tensor(label.get('bbox', [0, 0, 0, 0])) for label in y_labels]
     y_class = [torch.as_tensor([1 if label['type'] == 'Car' else 0]) for label in y_labels]
 
