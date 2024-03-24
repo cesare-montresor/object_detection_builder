@@ -35,6 +35,11 @@ imgnet_std = (0.229, 0.224, 0.225)
 def main():
     params = {}
 
+    im = cv2.imread('datasets/KittiDataset/raw/testing/image_2/006480.png')
+    cv2.rectangle(im, (50,50), (100,100), (0,255,0), thickness=-1)
+    #plt.imshow(im)
+    #plt.show(block=True)
+
     
     model = torch.load(model_path)
     
@@ -56,11 +61,10 @@ def inference_model(model, data_loader):
             img_np = img.cpu().numpy()
             img_np = np.transpose(img_np, (1, 2, 0))
             img_np = ((img_np * imgnet_std) + imgnet_mean)
-            img_np = np.transpose(img_np, (2, 0, 1))
-            img_np = (img_np * 255).astype(np.int32)
+            img_np = (img_np * 255).astype(np.uint8).copy()
 
             lbl = np.array(lbl)
-            c,h,w = img_np.shape
+            h,w,c = img_np.shape
             scale = np.array([w,h,w,h])
             
             if lbl[0] > 0.5:
@@ -68,19 +72,19 @@ def inference_model(model, data_loader):
                 p1 = (int(x1),int(y1))
                 p2 = (int(x2),int(y2))
                 print('GT',p1,p2)
-                img_np = cv2.rectangle(img_np, p1, p2, (0,255,0), thickness=10)
+                cv2.rectangle(img_np, p1, p2, (0,255,0), thickness=3)
             
             if lbl_hat[0] > 0.5:
                 x1,y1,x2,y2 = lbl_hat[1:] * scale
                 p1 = (int(x1),int(y1))
                 p2 = (int(x2),int(y2))    
                 print('PRED',p1,p2)
-                img_np = cv2.rectangle(img_np, p1, p2, (0,255,255), thickness=10)
+                cv2.rectangle(img_np, p1, p2, (0,0,255), thickness=3)
             
-            p1,p2 = (200,200),(250,250)
-            img_np = cv2.rectangle(img_np, p1, p2, (0,255,255), thickness=10)
+            #p1,p2 = (200,200),(250,250)
+            #cv2.rectangle(img_np, p1, p2, (0,255,255), thickness=.1)
 
-            plt.imshow(np.transpose(img_np, (1, 2, 0)))
+            plt.imshow(img_np)
             plt.show(block=True)
 
 

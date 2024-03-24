@@ -24,7 +24,6 @@ from ax.utils.tutorials.cnn_utils import evaluate  # train,
 from kitty_dataset import KittiDataset
 
 yaml.add_representer(np.ndarray, lambda dumper, array: dumper.represent_list(array.tolist()))
-yaml.add_representer(np.ndarray, lambda dumper, array: dumper.represent_list(array.tolist()))
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

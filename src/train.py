@@ -1,9 +1,11 @@
+# utils
 import matplotlib.pyplot as plt
 import numpy as np
 import time 
 import os
 import yaml
 
+# torch
 import torch
 import torchvision.transforms.v2 as transforms
 import torch.optim as optim
@@ -15,19 +17,25 @@ from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models import resnet101, ResNet101_Weights
 from torchvision.models import resnet152, ResNet152_Weights
+from torchsummary import summary
 
+# facebook ax
 from ax.plot.contour import plot_contour
 from ax.plot.trace import optimization_trace_single_method
 from ax.service.managed_loop import optimize
 from ax.utils.notebook.plotting import render
 from ax.utils.tutorials.cnn_utils import evaluate  # train,
+
+# custom
 from kitty_dataset import KittiDataset
+
 
 # http://vision.cs.stonybrook.edu/~lasot/
 # https://hengfan2010.github.io/projects/LaSOT/
+# https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection
 
 yaml.add_representer(np.ndarray, lambda dumper, array: dumper.represent_list(array.tolist()))
-yaml.add_representer(np.scalar, lambda dumper, array: dumper.represent_list(array.tolist()))
+
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -38,9 +46,10 @@ session_dir = output_dir + session_id + '/'
 os.makedirs(session_dir, exist_ok=True)
 imgnet_mean = (0.485, 0.456, 0.406)
 imgnet_std = (0.229, 0.224, 0.225)
+img_size = (370, 1224)
 
 loss_class_weight = 1
-loss_bbox_weight = 1
+loss_bbox_weight = 10
 
 
 def main():
@@ -180,6 +189,9 @@ def build_model(params):
     for param in model.parameters():
         param.requires_grad = False  # Freeze feature extractor
 
+    summary(model.cuda(), (3, *img_size))
+    
+
     in_features = model.fc.in_features
     
     fc_layers = [
@@ -214,7 +226,6 @@ def imshow(img):
 
 
 def getTransforms(params):
-    img_size = (370, 1224)
     transform = transforms.Compose([
         transforms.Resize(img_size),
         transforms.ToImage(),

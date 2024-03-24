@@ -14,5 +14,6 @@ pip install ax-platform==0.3.7
 pip install matplotlib==3.8.3
 pip install pyyaml==6.0.1
 pip install opencv-python==4.9.0.80
+pip install torchsummary==1.5.1
 
 #pip install -r requirements.txt
